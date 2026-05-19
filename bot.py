@@ -305,7 +305,6 @@ async def location_handler(message: Message, state: FSMContext):
         customer_id=message.from_user.id
     )
 
-    await message.answer_location(lat, lon)
 
     kb = ReplyKeyboardMarkup(
         keyboard=[
