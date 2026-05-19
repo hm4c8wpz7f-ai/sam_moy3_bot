@@ -214,7 +214,7 @@ https://maps.google.com/?q={loc.latitude},{loc.longitude}
 """
 
     await context.bot.send_message(
-        chat_id=ADMIN_ID = 5920169684,
+        chat_id=ADMIN_ID,
         text=text
     )
 
