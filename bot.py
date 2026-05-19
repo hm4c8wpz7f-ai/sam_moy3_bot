@@ -59,14 +59,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["cart"] = []
 
     keyboard = [
-        ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]
+        ["🇺🇿 O'zbekcha"],
+        ["🇷🇺 Русский"]
     ]
 
     await update.message.reply_text(
-        "Tilni tanlang / Выберите язык",
+        "👋 Assalomu alaykum!\n\nTilni tanlang:",
         reply_markup=ReplyKeyboardMarkup(
             keyboard,
-            resize_keyboard=True
+            resize_keyboard=True,
+            is_persistent=True
         )
     )
 
@@ -492,6 +494,11 @@ def main():
         entry_points=[
 
             CommandHandler("start", start),
+
+MessageHandler(
+    filters.TEXT & filters.Regex("🇺🇿 O'zbekcha|🇷🇺 Русский"),
+    start
+),
 
             MessageHandler(
                 filters.TEXT & filters.Regex("🛒 Yangi buyurtma"),
