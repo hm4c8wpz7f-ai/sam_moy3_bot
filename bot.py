@@ -57,7 +57,7 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Buyurtmani yakunlash"]
+            ["✅ Keyingi"]
         ]
 
         await update.message.reply_text(
@@ -74,7 +74,7 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ Завершить заказ"]
+            ["✅ следующий"]
         ]
 
         await update.message.reply_text(
@@ -146,7 +146,7 @@ async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Buyurtmani yakunlash"]
+            ["✅ Keyingi"]
         ]
 
         txt = "Yana mahsulot tanlang yoki yakunlang:"
@@ -154,7 +154,7 @@ async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ Завершить заказ"]
+            ["✅ следующий"]
         ]
 
         txt = "Добавьте товар или завершите заказ:"
@@ -294,7 +294,7 @@ async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Buyurtmani yakunlash"]
+            ["✅ Keyingi"]
         ]
 
         txt = "Mahsulot tanlang:"
@@ -302,7 +302,7 @@ async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ Завершить заказ"]
+            ["✅ следующий"]
         ]
 
         txt = "Выберите товар:"
