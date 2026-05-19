@@ -1,385 +1,566 @@
 import os
-import logging
-from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
-from aiogram.filters import CommandStart
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import (
-    Message,
-    KeyboardButton,
+import random
+
+from telegram import (
+    Update,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove
+    KeyboardButton,
+    ReplyKeyboardRemove,
 )
 
-TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 5920169684  # admin id
-
-logging.basicConfig(level=logging.INFO)
-
-bot = Bot(
-    token=TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    ContextTypes,
+    filters,
 )
 
-dp = Dispatcher(storage=MemoryStorage())
+# =========================
+# SETTINGS
+# =========================
+
+TOKEN = os.environ.get("BOT_TOKEN")
+
+ADMIN_ID = 5920169684
+
+(
+    LANG,
+    PRODUCT,
+    QUANTITY,
+    PAYMENT,
+    PHONE,
+    LOCATION,
+) = range(6)
 
 # =========================
 # PRODUCTS
 # =========================
 
-PRODUCTS_UZ = [
-    "Пена 20л",
-    "Актив химия 20л",
-    "Шампунь 20л",
-    "Воск 20л"
-]
+products = {
+    "uz": [
+        "🧴 Pena 20L",
+        "🧪 Aktiv kimyo 20L",
+    ],
 
-PRODUCTS_RU = [
-    "Пена 20л",
-    "Актив химия 20л",
-    "Шампунь 20л",
-    "Воск 20л"
-]
-
-# =========================
-# STATES
-# =========================
-
-class OrderState(StatesGroup):
-    language = State()
-    product = State()
-    quantity = State()
-    payment = State()
-    phone = State()
-    location = State()
+    "ru": [
+        "🧴 Пена 20Л",
+        "🧪 Активная химия 20Л",
+    ]
+}
 
 # =========================
 # START
 # =========================
 
-@dp.message(CommandStart())
-async def start_handler(message: Message, state: FSMContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="🇺🇿 O'zbekcha"),
-                KeyboardButton(text="🇷🇺 Русский")
-            ]
-        ],
-        resize_keyboard=True
-    )
+    context.user_data["cart"] = []
 
-    await state.clear()
+    keyboard = [
+        ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]
+    ]
 
-    await message.answer(
+    await update.message.reply_text(
         "Tilni tanlang / Выберите язык",
-        reply_markup=kb
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
     )
 
-    await state.set_state(OrderState.language)
+    return LANG
 
 # =========================
 # LANGUAGE
 # =========================
 
-@dp.message(OrderState.language)
-async def language_handler(message: Message, state: FSMContext):
+async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    text = message.text
+    text = update.message.text
 
-    if text == "🇺🇿 O'zbekcha":
-        lang = "uz"
-        products = PRODUCTS_UZ
-        msg = "🧴 Mahsulot tanlang"
+    if "🇺🇿" in text:
+
+        context.user_data["lang"] = "uz"
+
+        keyboard = [
+            [products["uz"][0]],
+            [products["uz"][1]],
+            ["➡️ Keyingi"]
+        ]
+
+        await update.message.reply_text(
+            "🛒 Mahsulot tanlang:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
+        )
+
     else:
-        lang = "ru"
-        products = PRODUCTS_RU
-        msg = "🧴 Выберите товар"
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=p)] for p in products
-        ] + [
-            [KeyboardButton(text="✅ Keyingi")]
-        ],
-        resize_keyboard=True
-    )
+        context.user_data["lang"] = "ru"
 
-    await state.update_data(
-        lang=lang,
-        cart=[]
-    )
+        keyboard = [
+            [products["ru"][0]],
+            [products["ru"][1]],
+            ["➡️ Далее"]
+        ]
 
-    await message.answer(
-        msg,
-        reply_markup=kb
-    )
+        await update.message.reply_text(
+            "🛒 Выберите товар:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
+        )
 
-    await state.set_state(OrderState.product)
+    return PRODUCT
 
 # =========================
 # PRODUCT
 # =========================
 
-@dp.message(OrderState.product)
-async def product_handler(message: Message, state: FSMContext):
+async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    text = message.text
-
-    data = await state.get_data()
-
-    lang = data.get("lang", "uz")
-
-    products = PRODUCTS_UZ if lang == "uz" else PRODUCTS_RU
+    text = update.message.text
+    lang = context.user_data["lang"]
 
     # NEXT
-    if text == "✅ Keyingi":
+    if "keyingi" in text.lower() or "далее" in text.lower():
 
-        cart = data.get("cart", [])
+        if len(context.user_data["cart"]) == 0:
 
-        if len(cart) == 0:
-            await message.answer("❌ Avval mahsulot tanlang")
-            return
+            if lang == "uz":
+                await update.message.reply_text(
+                    "❌ Avval mahsulot tanlang!"
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Сначала выберите товар!"
+                )
 
-        kb = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="💵 Naqd"),
-                    KeyboardButton(text="💳 Karta")
-                ]
-            ],
-            resize_keyboard=True
+            return PRODUCT
+
+        # PAYMENT
+        if lang == "uz":
+
+            keyboard = [
+                ["💵 Naqd"],
+                ["💳 Plastik karta"]
+            ]
+
+            await update.message.reply_text(
+                "💳 To'lov turini tanlang:",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard,
+                    resize_keyboard=True
+                )
+            )
+
+        else:
+
+            keyboard = [
+                ["💵 Наличные"],
+                ["💳 Карта"]
+            ]
+
+            await update.message.reply_text(
+                "💳 Выберите тип оплаты:",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard,
+                    resize_keyboard=True
+                )
+            )
+
+        return PAYMENT
+
+    # SAVE PRODUCT
+    context.user_data["current_product"] = text
+
+    if lang == "uz":
+
+        await update.message.reply_text(
+            "🔢 Nechta kerak?"
         )
 
-        await message.answer(
-            "💳 To'lov turini tanlang:",
-            reply_markup=kb
+    else:
+
+        await update.message.reply_text(
+            "🔢 Сколько нужно?"
         )
 
-        await state.set_state(OrderState.payment)
-        return
-
-    # PRODUCT
-    if text not in products:
-        await message.answer("❌ Tugmalardan foydalaning")
-        return
-
-    await state.update_data(current_product=text)
-
-    await message.answer(
-        "🔢 Mahsulot sonini kiriting:",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-    await state.set_state(OrderState.quantity)
+    return QUANTITY
 
 # =========================
 # QUANTITY
 # =========================
 
-@dp.message(OrderState.quantity)
-async def quantity_handler(message: Message, state: FSMContext):
+async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not message.text.isdigit():
-        await message.answer("❌ To'g'ri raqam kiriting")
-        return
+    qty = update.message.text.strip()
 
-    qty = int(message.text)
+    lang = context.user_data["lang"]
 
-    data = await state.get_data()
+    # ONLY NUMBER
+    if not qty.isdigit():
 
-    cart = data.get("cart", [])
-    product = data.get("current_product")
-    lang = data.get("lang", "uz")
+        if lang == "uz":
+            txt = "❌ To'g'ri raqam kiriting!"
+        else:
+            txt = "❌ Введите правильное число!"
 
-    cart.append({
-        "product": product,
-        "qty": qty
-    })
+        await update.message.reply_text(txt)
 
-    await state.update_data(cart=cart)
+        return QUANTITY
 
-    products = PRODUCTS_UZ if lang == "uz" else PRODUCTS_RU
+    product_name = context.user_data["current_product"]
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=p)] for p in products
-        ] + [
-            [KeyboardButton(text="✅ Keyingi")]
-        ],
-        resize_keyboard=True
+    context.user_data["cart"].append(
+        f"{product_name} — {qty} dona"
     )
 
-    await message.answer(
-        f"✅ {product} qo'shildi\n\n"
-        "Yana mahsulot tanlang yoki\n"
-        "✅ Keyingi tugmasini bosing",
-        reply_markup=kb
+    # KEYBOARD
+    if lang == "uz":
+
+        keyboard = [
+            [products["uz"][0]],
+            [products["uz"][1]],
+            ["➡️ Keyingi"]
+        ]
+
+        txt = (
+            "✅ Mahsulot qo'shildi.\n\n"
+            "Yana mahsulot tanlang yoki davom eting:"
+        )
+
+    else:
+
+        keyboard = [
+            [products["ru"][0]],
+            [products["ru"][1]],
+            ["➡️ Далее"]
+        ]
+
+        txt = (
+            "✅ Товар добавлен.\n\n"
+            "Добавьте товар или продолжите:"
+        )
+
+    await update.message.reply_text(
+        txt,
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
     )
 
-    await state.set_state(OrderState.product)
+    return PRODUCT
 
 # =========================
 # PAYMENT
 # =========================
 
-@dp.message(OrderState.payment)
-async def payment_handler(message: Message, state: FSMContext):
+async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    payment = message.text
+    context.user_data["payment"] = update.message.text
 
-    await state.update_data(payment=payment)
+    lang = context.user_data["lang"]
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(
-                    text="📞 Telefon raqam yuborish",
-                    request_contact=True
-                )
-            ]
-        ],
-        resize_keyboard=True
-    )
+    if lang == "uz":
 
-    await message.answer(
-        "📞 Telefon raqamingizni yuboring:",
-        reply_markup=kb
-    )
+        keyboard = [[
+            KeyboardButton(
+                "📞 Telefon raqam yuborish",
+                request_contact=True
+            )
+        ]]
 
-    await state.set_state(OrderState.phone)
+        await update.message.reply_text(
+            "📞 Telefon raqamingizni yuboring:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
+    else:
+
+        keyboard = [[
+            KeyboardButton(
+                "📞 Отправить номер",
+                request_contact=True
+            )
+        ]]
+
+        await update.message.reply_text(
+            "📞 Отправьте номер телефона:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
+    return PHONE
 
 # =========================
 # PHONE
 # =========================
 
-@dp.message(OrderState.phone)
-async def phone_handler(message: Message, state: FSMContext):
+async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not message.contact:
-        await message.answer("❌ Telefon raqamni tugma orqali yuboring")
-        return
+    contact = update.message.contact.phone_number
 
-    phone = message.contact.phone_number
+    context.user_data["phone"] = contact
 
-    await state.update_data(phone=phone)
+    lang = context.user_data["lang"]
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(
-                    text="📍 Lokatsiya yuborish",
-                    request_location=True
-                )
-            ]
-        ],
-        resize_keyboard=True
-    )
+    if lang == "uz":
 
-    await message.answer(
-        "📍 Lokatsiyani yuboring:",
-        reply_markup=kb
-    )
+        keyboard = [[
+            KeyboardButton(
+                "📍 Lokatsiya yuborish",
+                request_location=True
+            )
+        ]]
 
-    await state.set_state(OrderState.location)
+        await update.message.reply_text(
+            "📍 Lokatsiyani yuboring:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
+    else:
+
+        keyboard = [[
+            KeyboardButton(
+                "📍 Отправить локацию",
+                request_location=True
+            )
+        ]]
+
+        await update.message.reply_text(
+            "📍 Отправьте локацию:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
+    return LOCATION
 
 # =========================
 # LOCATION
 # =========================
 
-@dp.message(OrderState.location)
-async def location_handler(message: Message, state: FSMContext):
+async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not message.location:
-        await message.answer("❌ Lokatsiyani tugma orqali yuboring")
-        return
+    lat = update.message.location.latitude
+    lon = update.message.location.longitude
 
-    lat = message.location.latitude
-    lon = message.location.longitude
+    order_id = random.randint(1000, 9999)
 
-    data = await state.get_data()
+    products_text = "\n".join(
+        context.user_data["cart"]
+    )
 
-    cart = data.get("cart", [])
-    payment = data.get("payment")
-    phone = data.get("phone")
+    text = f"""
+🆕 YANGI BUYURTMA #{order_id}
 
-    order_id = message.message_id
+🛒 Mahsulotlar:
+{products_text}
 
-    products_text = ""
+💳 To'lov:
+{context.user_data['payment']}
 
-    for item in cart:
-        products_text += (
-            f"• {item['product']} x {item['qty']}\n"
+📞 Telefon:
+{context.user_data['phone']}
+
+📍 Yandex Navigator:
+https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map
+"""
+
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=text
+    )
+
+    lang = context.user_data["lang"]
+
+    if lang == "uz":
+        done_text = (
+            f"✅ Buyurtmangiz qabul qilindi!\n\n"
+            f"🆔 Buyurtma raqami: #{order_id}"
         )
 
-    yandex_link = f"https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map"
+        keyboard = [["🛒 Yangi buyurtma"]]
 
-    text = (
-        f"🛒 <b>YANGI BUYURTMA #{order_id}</b>\n\n"
-        f"<b>Mahsulotlar:</b>\n"
-        f"{products_text}\n"
-        f"<b>To'lov:</b> {payment}\n"
-        f"<b>Telefon:</b> {phone}\n\n"
-        f"📍 <b>Yandex Navigator:</b>\n"
-        f"{yandex_link}"
+    else:
+        done_text = (
+            f"✅ Заказ принят!\n\n"
+            f"🆔 Номер заказа: #{order_id}"
+        )
+
+        keyboard = [["🛒 Новый заказ"]]
+
+    await update.message.reply_text(
+        done_text,
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
     )
 
-    await bot.send_message(
-        ADMIN_ID,
-        text
-    )
+    context.user_data["cart"] = []
 
-    await message.answer_location(lat, lon)
-
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🛒 Yangi buyurtma berish")]
-        ],
-        resize_keyboard=True
-    )
-
-    await message.answer(
-        "✅ Buyurtmangiz qabul qilindi",
-        reply_markup=kb
-    )
-
-    await state.clear()
+    return ConversationHandler.END
 
 # =========================
 # NEW ORDER
 # =========================
 
-@dp.message(F.text == "🛒 Yangi buyurtma berish")
-async def new_order(message: Message, state: FSMContext):
+async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="🇺🇿 O'zbekcha"),
-                KeyboardButton(text="🇷🇺 Русский")
-            ]
+    context.user_data["cart"] = []
+
+    lang = context.user_data.get("lang", "uz")
+
+    if lang == "uz":
+
+        keyboard = [
+            [products["uz"][0]],
+            [products["uz"][1]],
+            ["➡️ Keyingi"]
+        ]
+
+        await update.message.reply_text(
+            "🛒 Mahsulot tanlang:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
+        )
+
+    else:
+
+        keyboard = [
+            [products["ru"][0]],
+            [products["ru"][1]],
+            ["➡️ Далее"]
+        ]
+
+        await update.message.reply_text(
+            "🛒 Выберите товар:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
+        )
+
+    return PRODUCT
+
+# =========================
+# CANCEL
+# =========================
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text(
+        "❌ Bekor qilindi",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+    return ConversationHandler.END
+
+# =========================
+# MAIN
+# =========================
+
+def main():
+
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+
+        entry_points=[
+
+            CommandHandler("start", start),
+
+            MessageHandler(
+                filters.TEXT & filters.Regex("🛒 Yangi buyurtma"),
+                new_order
+            ),
+
+            MessageHandler(
+                filters.TEXT & filters.Regex("🛒 Новый заказ"),
+                new_order
+            ),
         ],
-        resize_keyboard=True
+
+        states={
+
+            LANG: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    language
+                )
+            ],
+
+            PRODUCT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    product
+                )
+            ],
+
+            QUANTITY: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    quantity
+                )
+            ],
+
+            PAYMENT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    payment
+                )
+            ],
+
+            PHONE: [
+                MessageHandler(
+                    filters.CONTACT,
+                    phone
+                )
+            ],
+
+            LOCATION: [
+                MessageHandler(
+                    filters.LOCATION,
+                    location
+                )
+            ],
+        },
+
+        fallbacks=[
+            CommandHandler("cancel", cancel)
+        ],
     )
 
-    await message.answer(
-        "Tilni tanlang / Выберите язык",
-        reply_markup=kb
-    )
+    app.add_handler(conv_handler)
 
-    await state.set_state(OrderState.language)
+    print("Bot ishga tushdi...")
+
+    app.run_polling()
 
 # =========================
-# RUN
-# =========================
-
-async def main():
-    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
