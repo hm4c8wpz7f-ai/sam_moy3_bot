@@ -368,7 +368,7 @@ async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lat = update.message.location.latitude
     lon = update.message.location.longitude
 
-    order_id = random.randint(1000, 9999)
+order_id = int(reply_to_message.text.split("#")[1])
 
     products_text = "\n".join(
         context.user_data["cart"]
@@ -484,47 +484,35 @@ async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ADMIN REPLY
 # =========================
 
-async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+import re
 
-    # FAQAT ADMIN
-    if update.effective_user.id != ADMIN_ID:
+@dp.message(F.reply_to_message)
+async def admin_reply(message: Message):
+    if message.from_user.id != ADMIN_ID:
         return
 
-    # REPLY BO'LMASA
-    if not update.message.reply_to_message:
+    reply_text = message.reply_to_message.text
+
+    match = re.search(r'#(\d+)', reply_text)
+
+    if not match:
+        await message.answer("❌ Buyurtma ID topilmadi")
         return
 
-    replied_text = update.message.reply_to_message.text
+    order_id = int(match.group(1))
 
-    # USER ID YO'Q BO'LSA
-    if "USER ID:" not in replied_text:
+    if order_id not in orders:
+        await message.answer("❌ Buyurtma topilmadi")
         return
 
-    try:
+    user_id = orders[order_id]
 
-        user_id = int(
-            replied_text.split("USER ID:")[1]
-            .split("\n")[0]
-            .strip()
-        )
+    await bot.send_message(
+        user_id,
+        f"📩 Admin javobi:\n\n{message.text}"
+    )
 
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=(
-                "📩 Admin javobi:\n\n"
-                f"{update.message.text}"
-            )
-        )
-
-        await update.message.reply_text(
-            "✅ Xabar yuborildi"
-        )
-
-    except Exception as e:
-
-        await update.message.reply_text(
-            f"❌ Xato: {e}"
-        )
+    await message.answer("✅ Javob yuborildi")
 
 # =========================
 # CANCEL
