@@ -18,8 +18,7 @@ TOKEN = os.environ.get("BOT_TOKEN")
 
 LANGUAGE, PRODUCT, QUANTITY, PAYMENT, PHONE, LOCATION = range(6)
 
-ADMIN_ID = 123456789  # <-- BU YERGA O'Z TELEGRAM ID INGIZNI YOZING
-
+ADMIN_ID = 5920169684  # 
 
 # START
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
