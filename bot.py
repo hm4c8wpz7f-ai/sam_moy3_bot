@@ -1,39 +1,66 @@
 import os
 import random
+
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
 )
+
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     ConversationHandler,
     ContextTypes,
-    filters
+    filters,
 )
+
+# =========================
+# SETTINGS
+# =========================
 
 TOKEN = os.environ.get("BOT_TOKEN")
 
 ADMIN_ID = 5920169684
 
-LANG, PRODUCT, QUANTITY, PAYMENT, PHONE, LOCATION = range(6)
+(
+    LANG,
+    PRODUCT,
+    QUANTITY,
+    PAYMENT,
+    PHONE,
+    LOCATION,
+) = range(6)
+
+# =========================
+# PRODUCTS
+# =========================
 
 products = {
     "uz": [
         "🧴 Pena 20L",
-        "🧪 Aktiv kimyo 20L"
+        "🧪 Aktiv kimyo 20L",
     ],
+
     "ru": [
         "🧴 Пена 20Л",
-        "🧪 Активная химия 20Л"
+        "🧪 Активная химия 20Л",
     ]
 }
 
+# =========================
+# START
+# =========================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [["🇺🇿 O'zbekcha", "🇷🇺 Русский"]]
+
+    context.user_data["cart"] = []
+
+    keyboard = [
+        ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]
+    ]
 
     await update.message.reply_text(
         "Tilni tanlang / Выберите язык",
@@ -43,25 +70,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
 
-    context.user_data["cart"] = []
-
     return LANG
 
+# =========================
+# LANGUAGE
+# =========================
 
 async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     text = update.message.text
 
     if "🇺🇿" in text:
+
         context.user_data["lang"] = "uz"
 
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Keyingi"]
+            ["➡️ Keyingi"]
         ]
 
         await update.message.reply_text(
-            "Mahsulot tanlang:",
+            "🛒 Mahsulot tanlang:",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard,
                 resize_keyboard=True
@@ -69,16 +99,17 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     else:
+
         context.user_data["lang"] = "ru"
 
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ следующий"]
+            ["➡️ Далее"]
         ]
 
         await update.message.reply_text(
-            "Выберите товар:",
+            "🛒 Выберите товар:",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard,
                 resize_keyboard=True
@@ -87,77 +118,135 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return PRODUCT
 
+# =========================
+# PRODUCT
+# =========================
 
 async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
 
-    if "yakunlash" in text.lower() or "завершить" in text.lower():
+    text = update.message.text
+    lang = context.user_data["lang"]
+
+    # NEXT
+    if "keyingi" in text.lower() or "далее" in text.lower():
 
         if len(context.user_data["cart"]) == 0:
-            await update.message.reply_text(
-                "Avval mahsulot tanlang!"
-            )
+
+            if lang == "uz":
+                await update.message.reply_text(
+                    "❌ Avval mahsulot tanlang!"
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Сначала выберите товар!"
+                )
+
             return PRODUCT
 
-        lang = context.user_data["lang"]
-
+        # PAYMENT
         if lang == "uz":
-            keyboard = [["💵 Naqd", "💳 Karta"]]
-            txt = "To'lov turini tanlang:"
-        else:
-            keyboard = [["💵 Наличные", "💳 Карта"]]
-            txt = "Выберите тип оплаты:"
 
-        await update.message.reply_text(
-            txt,
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard,
-                resize_keyboard=True
+            keyboard = [
+                ["💵 Naqd"],
+                ["💳 Plastik karta"]
+            ]
+
+            await update.message.reply_text(
+                "💳 To'lov turini tanlang:",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard,
+                    resize_keyboard=True
+                )
             )
-        )
+
+        else:
+
+            keyboard = [
+                ["💵 Наличные"],
+                ["💳 Карта"]
+            ]
+
+            await update.message.reply_text(
+                "💳 Выберите тип оплаты:",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard,
+                    resize_keyboard=True
+                )
+            )
 
         return PAYMENT
 
+    # SAVE PRODUCT
     context.user_data["current_product"] = text
 
-    lang = context.user_data["lang"]
-
     if lang == "uz":
-        txt = "Nechta kerak?"
-    else:
-        txt = "Сколько нужно?"
 
-    await update.message.reply_text(txt)
+        await update.message.reply_text(
+            "🔢 Nechta kerak?"
+        )
+
+    else:
+
+        await update.message.reply_text(
+            "🔢 Сколько нужно?"
+        )
 
     return QUANTITY
 
+# =========================
+# QUANTITY
+# =========================
 
 async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    qty = update.message.text
+
+    qty = update.message.text.strip()
+
+    lang = context.user_data["lang"]
+
+    # ONLY NUMBER
+    if not qty.isdigit():
+
+        if lang == "uz":
+            txt = "❌ To'g'ri raqam kiriting!"
+        else:
+            txt = "❌ Введите правильное число!"
+
+        await update.message.reply_text(txt)
+
+        return QUANTITY
+
     product_name = context.user_data["current_product"]
 
     context.user_data["cart"].append(
         f"{product_name} — {qty} dona"
     )
 
-    lang = context.user_data["lang"]
-
+    # KEYBOARD
     if lang == "uz":
+
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Keyingi"]
+            ["➡️ Keyingi"]
         ]
 
-        txt = "Yana mahsulot tanlang yoki yakunlang:"
+        txt = (
+            "✅ Mahsulot qo'shildi.\n\n"
+            "Yana mahsulot tanlang yoki davom eting:"
+        )
+
     else:
+
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ следующий"]
+            ["➡️ Далее"]
         ]
 
-        txt = "Добавьте товар или завершите заказ:"
+        txt = (
+            "✅ Товар добавлен.\n\n"
+            "Добавьте товар или продолжите:"
+        )
 
     await update.message.reply_text(
         txt,
@@ -169,13 +258,18 @@ async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return PRODUCT
 
+# =========================
+# PAYMENT
+# =========================
 
 async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     context.user_data["payment"] = update.message.text
 
     lang = context.user_data["lang"]
 
     if lang == "uz":
+
         keyboard = [[
             KeyboardButton(
                 "📞 Telefon raqam yuborish",
@@ -183,8 +277,17 @@ async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         ]]
 
-        txt = "Telefon raqamingizni yuboring:"
+        await update.message.reply_text(
+            "📞 Telefon raqamingizni yuboring:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
     else:
+
         keyboard = [[
             KeyboardButton(
                 "📞 Отправить номер",
@@ -192,26 +295,31 @@ async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         ]]
 
-        txt = "Отправьте номер телефона:"
-
-    await update.message.reply_text(
-        txt,
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
+        await update.message.reply_text(
+            "📞 Отправьте номер телефона:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
         )
-    )
 
     return PHONE
 
+# =========================
+# PHONE
+# =========================
 
 async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     contact = update.message.contact.phone_number
+
     context.user_data["phone"] = contact
 
     lang = context.user_data["lang"]
 
     if lang == "uz":
+
         keyboard = [[
             KeyboardButton(
                 "📍 Lokatsiya yuborish",
@@ -219,8 +327,17 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         ]]
 
-        txt = "Lokatsiyani yuboring:"
+        await update.message.reply_text(
+            "📍 Lokatsiyani yuboring:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+        )
+
     else:
+
         keyboard = [[
             KeyboardButton(
                 "📍 Отправить локацию",
@@ -228,20 +345,23 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         ]]
 
-        txt = "Отправьте локацию:"
-
-    await update.message.reply_text(
-        txt,
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
+        await update.message.reply_text(
+            "📍 Отправьте локацию:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
         )
-    )
 
     return LOCATION
 
+# =========================
+# LOCATION
+# =========================
 
 async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     lat = update.message.location.latitude
     lon = update.message.location.longitude
 
@@ -254,7 +374,7 @@ async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""
 🆕 YANGI BUYURTMA #{order_id}
 
-🧴 Mahsulotlar:
+🛒 Mahsulotlar:
 {products_text}
 
 💳 To'lov:
@@ -272,94 +392,175 @@ https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map
         text=text
     )
 
-    keyboard = [["🛒 Yangi buyurtma"]]
+    lang = context.user_data["lang"]
+
+    if lang == "uz":
+        done_text = (
+            f"✅ Buyurtmangiz qabul qilindi!\n\n"
+            f"🆔 Buyurtma raqami: #{order_id}"
+        )
+
+        keyboard = [["🛒 Yangi buyurtma"]]
+
+    else:
+        done_text = (
+            f"✅ Заказ принят!\n\n"
+            f"🆔 Номер заказа: #{order_id}"
+        )
+
+        keyboard = [["🛒 Новый заказ"]]
 
     await update.message.reply_text(
-        f"✅ Buyurtmangiz qabul qilindi!\n\n🆔 Buyurtma: #{order_id}",
+        done_text,
         reply_markup=ReplyKeyboardMarkup(
             keyboard,
             resize_keyboard=True
         )
     )
 
+    context.user_data["cart"] = []
+
     return ConversationHandler.END
 
+# =========================
+# NEW ORDER
+# =========================
 
 async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     context.user_data["cart"] = []
 
     lang = context.user_data.get("lang", "uz")
 
     if lang == "uz":
+
         keyboard = [
             [products["uz"][0]],
             [products["uz"][1]],
-            ["✅ Keyingi"]
+            ["➡️ Keyingi"]
         ]
 
-        txt = "Mahsulot tanlang:"
+        await update.message.reply_text(
+            "🛒 Mahsulot tanlang:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
+        )
+
     else:
+
         keyboard = [
             [products["ru"][0]],
             [products["ru"][1]],
-            ["✅ следующий"]
+            ["➡️ Далее"]
         ]
 
-        txt = "Выберите товар:"
-
-    await update.message.reply_text(
-        txt,
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
+        await update.message.reply_text(
+            "🛒 Выберите товар:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+            )
         )
-    )
 
     return PRODUCT
 
+# =========================
+# CANCEL
+# =========================
 
-app = ApplicationBuilder().token(TOKEN).build()
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-conv_handler = ConversationHandler(
-    entry_points=[
-        CommandHandler("start", start),
-        MessageHandler(
-            filters.TEXT & filters.Regex("🛒 Yangi buyurtma"),
-            new_order
-        )
-    ],
+    await update.message.reply_text(
+        "❌ Bekor qilindi",
+        reply_markup=ReplyKeyboardRemove()
+    )
 
-    states={
-        LANG: [
-            MessageHandler(filters.TEXT, language)
+    return ConversationHandler.END
+
+# =========================
+# MAIN
+# =========================
+
+def main():
+
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+
+        entry_points=[
+
+            CommandHandler("start", start),
+
+            MessageHandler(
+                filters.TEXT & filters.Regex("🛒 Yangi buyurtma"),
+                new_order
+            ),
+
+            MessageHandler(
+                filters.TEXT & filters.Regex("🛒 Новый заказ"),
+                new_order
+            ),
         ],
 
-        PRODUCT: [
-            MessageHandler(filters.TEXT, product)
+        states={
+
+            LANG: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    language
+                )
+            ],
+
+            PRODUCT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    product
+                )
+            ],
+
+            QUANTITY: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    quantity
+                )
+            ],
+
+            PAYMENT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    payment
+                )
+            ],
+
+            PHONE: [
+                MessageHandler(
+                    filters.CONTACT,
+                    phone
+                )
+            ],
+
+            LOCATION: [
+                MessageHandler(
+                    filters.LOCATION,
+                    location
+                )
+            ],
+        },
+
+        fallbacks=[
+            CommandHandler("cancel", cancel)
         ],
+    )
 
-        QUANTITY: [
-            MessageHandler(filters.TEXT, quantity)
-        ],
+    app.add_handler(conv_handler)
 
-        PAYMENT: [
-            MessageHandler(filters.TEXT, payment)
-        ],
+    print("Bot ishga tushdi...")
 
-        PHONE: [
-            MessageHandler(filters.CONTACT, phone)
-        ],
+    app.run_polling()
 
-        LOCATION: [
-            MessageHandler(filters.LOCATION, location)
-        ],
-    },
+# =========================
 
-    fallbacks=[]
-)
-
-app.add_handler(conv_handler)
-
-print("Bot ishga tushdi...")
-
-app.run_polling()
+if __name__ == "__main__":
+    main()
