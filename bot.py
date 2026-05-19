@@ -23,7 +23,6 @@ from telegram.ext import (
 
 TOKEN = os.environ.get("BOT_TOKEN")
 
-# O'Z TELEGRAM ID INGIZ
 ADMIN_ID = 5920169684
 
 (
@@ -60,16 +59,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["cart"] = []
 
     keyboard = [
-        ["🇺🇿 O'zbekcha"],
-        ["🇷🇺 Русский"]
+        ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]
     ]
 
     await update.message.reply_text(
-        "👋 Assalomu alaykum!\n\nTilni tanlang:",
+        "Tilni tanlang / Выберите язык",
         reply_markup=ReplyKeyboardMarkup(
             keyboard,
-            resize_keyboard=True,
-            is_persistent=True
+            resize_keyboard=True
         )
     )
 
@@ -374,17 +371,8 @@ async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["cart"]
     )
 
-    user_id = update.effective_user.id
-    user_name = update.effective_user.full_name
-
     text = f"""
 🆕 YANGI BUYURTMA #{order_id}
-
-👤 Mijoz:
-{user_name}
-
-🆔 USER ID:
-{user_id}
 
 🛒 Mahsulotlar:
 {products_text}
@@ -407,7 +395,6 @@ https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map
     lang = context.user_data["lang"]
 
     if lang == "uz":
-
         done_text = (
             f"✅ Buyurtmangiz qabul qilindi!\n\n"
             f"🆔 Buyurtma raqami: #{order_id}"
@@ -416,7 +403,6 @@ https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map
         keyboard = [["🛒 Yangi buyurtma"]]
 
     else:
-
         done_text = (
             f"✅ Заказ принят!\n\n"
             f"🆔 Номер заказа: #{order_id}"
@@ -479,52 +465,6 @@ async def new_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     return PRODUCT
-
-# =========================
-# ADMIN REPLY
-# =========================
-
-async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    # FAQAT ADMIN
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    # REPLY BO'LMASA
-    if not update.message.reply_to_message:
-        return
-
-    replied_text = update.message.reply_to_message.text
-
-    # USER ID YO'Q BO'LSA
-    if "USER ID:" not in replied_text:
-        return
-
-    try:
-
-        user_id = int(
-            replied_text.split("USER ID:")[1]
-            .split("\n")[0]
-            .strip()
-        )
-
-        await context.bot.send_message(
-            chat_id=user_id,
-            text=(
-                "📩 Admin javobi:\n\n"
-                f"{update.message.text}"
-            )
-        )
-
-        await update.message.reply_text(
-            "✅ Xabar yuborildi"
-        )
-
-    except Exception as e:
-
-        await update.message.reply_text(
-            f"❌ Xato: {e}"
-        )
 
 # =========================
 # CANCEL
@@ -615,14 +555,6 @@ def main():
     )
 
     app.add_handler(conv_handler)
-
-    # ADMIN REPLY
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            admin_reply
-        )
-    )
 
     print("Bot ishga tushdi...")
 
