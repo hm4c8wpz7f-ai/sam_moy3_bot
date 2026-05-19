@@ -16,9 +16,19 @@ import os
 
 TOKEN = os.environ.get("BOT_TOKEN")
 
-LANGUAGE, PRODUCT, QUANTITY, PAYMENT, PHONE, LOCATION = range(6)
+# O'zingizning Telegram ID
+ADMIN_ID = 5920169684
 
-ADMIN_ID = 5920169684  # 
+(
+    LANGUAGE,
+    PRODUCT,
+    QUANTITY,
+    ADD_MORE,
+    PAYMENT,
+    PHONE,
+    LOCATION,
+) = range(7)
+
 
 # START
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,6 +44,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
 
+    context.user_data["cart"] = []
+
     return LANGUAGE
 
 
@@ -45,8 +57,8 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["lang"] = "uz"
 
         buttons = [
-            ["Пена 20L"],
-            ["Актив химия 20L"]
+            ["🧴 Пена 20L"],
+            ["🧼 Актив химия 20L"]
         ]
 
         await update.message.reply_text(
@@ -61,8 +73,8 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["lang"] = "ru"
 
         buttons = [
-            ["Пена 20L"],
-            ["Актив химия 20L"]
+            ["🧴 Пена 20L"],
+            ["🧼 Актив химия 20L"]
         ]
 
         await update.message.reply_text(
@@ -78,13 +90,13 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # PRODUCT
 async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["product"] = update.message.text
+    context.user_data["current_product"] = update.message.text
 
     lang = context.user_data["lang"]
 
     if lang == "uz":
         await update.message.reply_text(
-            "Сонини киритинг:"
+            "Миқдорини киритинг:"
         )
     else:
         await update.message.reply_text(
@@ -96,30 +108,62 @@ async def product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # QUANTITY
 async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["quantity"] = update.message.text
+    quantity = update.message.text
+    product = context.user_data["current_product"]
 
-    lang = context.user_data["lang"]
+    context.user_data["cart"].append({
+        "product": product,
+        "quantity": quantity
+    })
 
     buttons = [
-        ["💵 Naqd", "💳 Plastik karta"]
+        ["➕ Yana mahsulot"],
+        ["✅ Davom etish"]
     ]
 
-    if lang == "uz":
+    await update.message.reply_text(
+        "Yana mahsulot qo'shasizmi?",
+        reply_markup=ReplyKeyboardMarkup(
+            buttons,
+            resize_keyboard=True
+        )
+    )
+
+    return ADD_MORE
+
+
+# ADD MORE
+async def add_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    if "Yana" in text:
+        buttons = [
+            ["🧴 Пена 20L"],
+            ["🧼 Актив химия 20L"]
+        ]
+
         await update.message.reply_text(
-            "Тўлов турини танланг:",
+            "Маҳсулотни танланг:",
             reply_markup=ReplyKeyboardMarkup(
                 buttons,
                 resize_keyboard=True
             )
         )
-    else:
-        await update.message.reply_text(
-            "Выберите способ оплаты:",
-            reply_markup=ReplyKeyboardMarkup(
-                buttons,
-                resize_keyboard=True
-            )
+
+        return PRODUCT
+
+    buttons = [
+        ["💵 Naqd"],
+        ["💳 Plastik karta"]
+    ]
+
+    await update.message.reply_text(
+        "Тўлов турини танланг:",
+        reply_markup=ReplyKeyboardMarkup(
+            buttons,
+            resize_keyboard=True
         )
+    )
 
     return PAYMENT
 
@@ -128,31 +172,19 @@ async def quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["payment"] = update.message.text
 
-    lang = context.user_data["lang"]
-
     button = KeyboardButton(
         "📞 Telefon raqam yuborish",
         request_contact=True
     )
 
-    if lang == "uz":
-        await update.message.reply_text(
-            "Телефон рақамингизни юборинг:",
-            reply_markup=ReplyKeyboardMarkup(
-                [[button]],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
+    await update.message.reply_text(
+        "Телефон рақамингизни юборинг:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[button]],
+            resize_keyboard=True,
+            one_time_keyboard=True
         )
-    else:
-        await update.message.reply_text(
-            "Отправьте номер телефона:",
-            reply_markup=ReplyKeyboardMarkup(
-                [[button]],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
-        )
+    )
 
     return PHONE
 
@@ -163,31 +195,19 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["phone"] = contact.phone_number
 
-    lang = context.user_data["lang"]
-
     button = KeyboardButton(
         "📍 Lokatsiya yuborish",
         request_location=True
     )
 
-    if lang == "uz":
-        await update.message.reply_text(
-            "Локация юборинг:",
-            reply_markup=ReplyKeyboardMarkup(
-                [[button]],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
+    await update.message.reply_text(
+        "Локация юборинг:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[button]],
+            resize_keyboard=True,
+            one_time_keyboard=True
         )
-    else:
-        await update.message.reply_text(
-            "Отправьте локацию:",
-            reply_markup=ReplyKeyboardMarkup(
-                [[button]],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
-        )
+    )
 
     return LOCATION
 
@@ -196,16 +216,23 @@ async def phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     loc = update.message.location
 
-    product = context.user_data["product"]
-    quantity = context.user_data["quantity"]
+    cart = context.user_data["cart"]
     payment = context.user_data["payment"]
     phone = context.user_data["phone"]
+
+    items_text = ""
+
+    for item in cart:
+        items_text += (
+            f"🧴 {item['product']} - "
+            f"{item['quantity']} dona\n"
+        )
 
     text = f"""
 🛒 YANGI BUYURTMA
 
-🧴 Mahsulot: {product}
-🔢 Soni: {quantity}
+{items_text}
+
 💳 To'lov: {payment}
 📞 Telefon: {phone}
 
@@ -223,19 +250,22 @@ https://maps.google.com/?q={loc.latitude},{loc.longitude}
         reply_markup=ReplyKeyboardRemove()
     )
 
+    context.user_data.clear()
+
     return ConversationHandler.END
 
 
 # CANCEL
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Bekor qilindi.",
+        "❌ Bekor qilindi",
         reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
 
 
+# MAIN
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -243,24 +273,55 @@ def main():
         entry_points=[CommandHandler("start", start)],
         states={
             LANGUAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, language)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    language
+                )
             ],
+
             PRODUCT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, product)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    product
+                )
             ],
+
             QUANTITY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, quantity)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    quantity
+                )
             ],
+
+            ADD_MORE: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    add_more
+                )
+            ],
+
             PAYMENT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, payment)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    payment
+                )
             ],
+
             PHONE: [
-                MessageHandler(filters.CONTACT, phone)
+                MessageHandler(
+                    filters.CONTACT,
+                    phone
+                )
             ],
+
             LOCATION: [
-                MessageHandler(filters.LOCATION, location)
+                MessageHandler(
+                    filters.LOCATION,
+                    location
+                )
             ],
         },
+
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
