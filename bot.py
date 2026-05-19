@@ -14,8 +14,8 @@ from aiogram.filters import CommandStart
 # ──────────────────────────────────────────────
 #  СОЗЛАШ (шу ерни тўлдиринг)
 # ──────────────────────────────────────────────
-BOT_TOKEN     = "TOKEN"          # @BotFather дан
-ADMIN_CHAT_ID = 123456789        # Admin Telegram ID
+BOT_TOKEN     = "8961849878:AAG5t12VRprPCw-WW-N7F0GFCMMBbR9Efck" 
+ADMIN_CHAT_ID = 5920169684        
  
 # ──────────────────────────────────────────────
 #  ТОВАРЛАР (янги товар қўшиш учун шу рўйхатни кенгайтиринг)
