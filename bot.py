@@ -9,6 +9,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+
 from aiogram.types import (
     Message,
     ReplyKeyboardMarkup,
@@ -22,12 +23,16 @@ from aiogram.types import (
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-ADMIN_ID = 5920169684  # <-- O'zingizning Telegram ID
-
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(storage=MemoryStorage())
+ADMIN_ID = 5920169684  # <-- admin id
 
 logging.basicConfig(level=logging.INFO)
+
+bot = Bot(
+    token=BOT_TOKEN,
+    parse_mode=ParseMode.HTML
+)
+
+dp = Dispatcher(storage=MemoryStorage())
 
 # =========================
 # DATA
@@ -83,7 +88,7 @@ def payment_keyboard():
         keyboard=[
             [
                 KeyboardButton(text="💵 Naqd"),
-                KeyboardButton(text="💳 Karta")
+                KeyboardButton(text="💳 Plastik karta")
             ]
         ],
         resize_keyboard=True
@@ -144,9 +149,15 @@ async def start_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.language)
 async def language_handler(message: Message, state: FSMContext):
-    await state.update_data(language=message.text)
 
-    await state.update_data(products=[])
+    if message.text not in ["🇺🇿 O'zbekcha", "🇷🇺 Русский"]:
+        await message.answer("❌ Tugmadan foydalaning")
+        return
+
+    await state.update_data(
+        language=message.text,
+        products=[]
+    )
 
     await message.answer(
         "🧴 Mahsulot tanlang",
@@ -161,28 +172,40 @@ async def language_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.product)
 async def product_handler(message: Message, state: FSMContext):
+
     text = message.text
 
     if text == "✅ Keyingi":
+
         data = await state.get_data()
 
-        if not data["products"]:
-            await message.answer("❌ Avval mahsulot tanlang")
+        if len(data["products"]) == 0:
+            await message.answer(
+                "❌ Avval mahsulot tanlang"
+            )
             return
 
+        await state.update_data(current_qty_index=0)
+
+        first_product = data["products"][0]["name"]
+
         await message.answer(
-            "🔢 Mahsulot sonini kiriting:",
+            f"🔢 {first_product} sonini kiriting:",
             reply_markup=ReplyKeyboardRemove()
         )
 
         await state.set_state(OrderState.quantity)
+
         return
 
     if text not in PRODUCTS:
-        await message.answer("❌ Tugmalardan foydalaning")
+        await message.answer(
+            "❌ Tugmalardan foydalaning"
+        )
         return
 
     data = await state.get_data()
+
     products = data["products"]
 
     products.append({
@@ -192,8 +215,9 @@ async def product_handler(message: Message, state: FSMContext):
     await state.update_data(products=products)
 
     await message.answer(
-        f"✅ {text} qo'shildi\n"
-        f"Yana mahsulot tanlang yoki '✅ Keyingi' bosing"
+        f"✅ {text} qo'shildi\n\n"
+        f"Yana mahsulot tanlang yoki\n"
+        f"'✅ Keyingi' tugmasini bosing"
     )
 
 # =========================
@@ -202,38 +226,35 @@ async def product_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.quantity)
 async def quantity_handler(message: Message, state: FSMContext):
+
     text = message.text.strip()
 
     if not text.isdigit():
-        await message.answer("❌ To'g'ri raqam kiriting")
+        await message.answer(
+            "❌ To'g'ri raqam kiriting"
+        )
         return
 
     qty = int(text)
 
     data = await state.get_data()
+
     products = data["products"]
 
-    for product in products:
-        if "qty" not in product:
-            product["qty"] = qty
-            break
+    current_index = data.get("current_qty_index", 0)
 
-    unfinished = False
+    products[current_index]["qty"] = qty
 
-    for product in products:
-        if "qty" not in product:
-            unfinished = True
-            break
+    current_index += 1
 
-    await state.update_data(products=products)
+    await state.update_data(
+        products=products,
+        current_qty_index=current_index
+    )
 
-    if unfinished:
-        next_product = None
+    if current_index < len(products):
 
-        for product in products:
-            if "qty" not in product:
-                next_product = product["name"]
-                break
+        next_product = products[current_index]["name"]
 
         await message.answer(
             f"🔢 {next_product} sonini kiriting:"
@@ -254,6 +275,11 @@ async def quantity_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.payment)
 async def payment_handler(message: Message, state: FSMContext):
+
+    if message.text not in ["💵 Naqd", "💳 Plastik karta"]:
+        await message.answer("❌ Tugmadan foydalaning")
+        return
+
     await state.update_data(payment=message.text)
 
     await message.answer(
@@ -269,6 +295,7 @@ async def payment_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.phone, F.contact)
 async def phone_handler(message: Message, state: FSMContext):
+
     phone = message.contact.phone_number
 
     await state.update_data(phone=phone)
@@ -286,6 +313,7 @@ async def phone_handler(message: Message, state: FSMContext):
 
 @dp.message(OrderState.location, F.location)
 async def location_handler(message: Message, state: FSMContext):
+
     global order_counter
 
     data = await state.get_data()
@@ -300,28 +328,29 @@ async def location_handler(message: Message, state: FSMContext):
         ]
     )
 
-    order_text = (
+    text = (
         f"🆕 <b>YANGI BUYURTMA #{order_counter}</b>\n\n"
-        f"🧴 Mahsulotlar:\n{products_text}\n\n"
-        f"💳 To'lov: {data['payment']}\n"
-        f"📞 Telefon: {data['phone']}\n\n"
-        f"📍 Yandex Navigator:\n"
+        f"🧴 <b>Mahsulotlar:</b>\n"
+        f"{products_text}\n\n"
+        f"💳 <b>To'lov:</b> {data['payment']}\n"
+        f"📞 <b>Telefon:</b> {data['phone']}\n\n"
+        f"📍 <b>Yandex Navigator:</b>\n"
         f"https://yandex.ru/maps/?pt={lon},{lat}&z=16&l=map"
     )
 
-    sent_message = await bot.send_message(
+    await bot.send_message(
         ADMIN_ID,
-        order_text
+        text
     )
 
     orders_db[order_counter] = message.from_user.id
+
+    order_counter += 1
 
     await message.answer(
         "✅ Buyurtmangiz qabul qilindi!",
         reply_markup=restart_keyboard()
     )
-
-    order_counter += 1
 
     await state.clear()
 
@@ -331,6 +360,7 @@ async def location_handler(message: Message, state: FSMContext):
 
 @dp.message(F.text == "🛒 Yangi buyurtma berish")
 async def new_order(message: Message, state: FSMContext):
+
     await state.clear()
 
     await message.answer(
@@ -346,6 +376,7 @@ async def new_order(message: Message, state: FSMContext):
 
 @dp.message(F.reply_to_message)
 async def admin_reply(message: Message):
+
     if message.from_user.id != ADMIN_ID:
         return
 
@@ -354,13 +385,17 @@ async def admin_reply(message: Message):
     match = re.search(r'#(\d+)', reply_text)
 
     if not match:
-        await message.answer("❌ Buyurtma ID topilmadi")
+        await message.answer(
+            "❌ Buyurtma ID topilmadi"
+        )
         return
 
     order_id = int(match.group(1))
 
     if order_id not in orders_db:
-        await message.answer("❌ Buyurtma topilmadi")
+        await message.answer(
+            "❌ Buyurtma topilmadi"
+        )
         return
 
     user_id = orders_db[order_id]
@@ -370,7 +405,9 @@ async def admin_reply(message: Message):
         f"📩 Admin javobi:\n\n{message.text}"
     )
 
-    await message.answer("✅ Javob yuborildi")
+    await message.answer(
+        "✅ Javob yuborildi"
+    )
 
 # =========================
 # RUN
