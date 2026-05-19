@@ -370,7 +370,9 @@ async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 order_id = int(reply_to_message.text.split("#")[1])
 
-    products_text = "\n".join(
+products_text = "\n".join(
+    [f"{p['name']} x {p['qty']}" for p in data["products"]]
+)
         context.user_data["cart"]
     )
 
